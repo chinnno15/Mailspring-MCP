@@ -19,7 +19,7 @@ The plugin uses Mailspring's own `DatabaseStore` API, so there's no database pat
    npm run build
    ```
 
-3. Restart Mailspring. The MCP server starts automatically on `http://127.0.0.1:2525/sse`.
+3. Restart Mailspring. The MCP server starts automatically on `http://127.0.0.1:2525/mcp`.
 
 ## VS Code MCP Configuration
 
@@ -29,7 +29,7 @@ Add to your `.vscode/mcp.json` (already included in this repo):
 {
   "mcpServers": {
     "mailspring": {
-      "url": "http://127.0.0.1:2525/sse"
+      "url": "http://127.0.0.1:2525/mcp"
     }
   }
 }
@@ -39,20 +39,21 @@ Add to your `.vscode/mcp.json` (already included in this repo):
 
 | Tool | Description |
 |------|-------------|
-| `search_emails` | Full-text search across email threads |
-| `read_email` | Read a specific email with full body |
-| `list_threads` | List threads with filters (folder, label, unread, starred) |
-| `read_thread` | Read a full thread with all messages |
-| `list_contacts` | List or search contacts |
+| `search_emails` | Full-text search with structured filters (from, to, subject, date range, folder, label, unread, starred, attachments). Supports FTS5 syntax: `OR`, `NOT`, quoted phrases, prefix matching. |
+| `read_email` | Read a specific email with full body content and attachment list |
+| `batch_read_emails` | Read multiple emails at once by ID — full body + attachments for each |
+| `list_threads` | List threads with filters (folder, label, unread, starred, date range, attachments). Returns enriched metadata: message count, last sender, reply status. |
+| `read_thread` | Read a full thread with all messages, reply status, and attachment details |
+| `list_contacts` | List or search contacts by name/email |
 | `list_folders` | List all mailbox folders |
 | `list_labels` | List all email labels |
-| `get_recent_emails` | Get the most recent emails |
+| `get_recent_emails` | Get recent emails with date range filtering and pagination |
 | `list_drafts` | List draft emails |
 | `email_stats` | Get mailbox statistics |
 
 ## How It Works
 
-On `activate()`, the plugin starts an HTTP server on port 2525 that speaks the MCP protocol via SSE transport. All queries go through Mailspring's `DatabaseStore` — the same read-only API that Mailspring's own UI uses. No direct SQLite access needed.
+On `activate()`, the plugin starts an HTTP server on port 2525 that speaks the MCP protocol via Streamable HTTP transport. All queries go through Mailspring's `DatabaseStore` — the same read-only API that Mailspring's own UI uses. No direct SQLite access needed.
 
 On `deactivate()` (or when Mailspring shuts down), the HTTP server is cleaned up.
 

@@ -3,14 +3,36 @@ declare module 'mailspring-exports'
 	interface Attribute
 	{
 		equal(val: any): Matcher;
+		not(val: any): Matcher;
 		contains(val: string): Matcher;
 		containsAny(val: string[]): Matcher;
 		in(val: any[]): Matcher;
+		notIn(val: any[]): Matcher;
+		greaterThan(val: any): Matcher;
+		lessThan(val: any): Matcher;
+		greaterThanOrEqualTo(val: any): Matcher;
+		lessThanOrEqualTo(val: any): Matcher;
+		gt(val: any): Matcher;
+		lt(val: any): Matcher;
+		gte(val: any): Matcher;
+		lte(val: any): Matcher;
+		like(val: string): Matcher;
+		startsWith(val: string): Matcher;
 		descending(): SortDescriptor;
 		ascending(): SortDescriptor;
 	}
 
-	interface Matcher { }
+	interface Matcher
+	{
+	}
+
+	const Matcher:
+	{
+		Or(matchers: Matcher[]): Matcher;
+		And(matchers: Matcher[]): Matcher;
+		Not(matchers: Matcher[]): Matcher;
+		Search(query: string): Matcher;
+	};
 	interface SortDescriptor { }
 
 	interface ModelQuery<T> extends Promise<T[]>
@@ -112,6 +134,20 @@ declare module 'mailspring-exports'
 		replyToHeaderMessageId: string | null;
 		headerMessageId: string;
 	}
+
+	interface MailspringAccount
+	{
+		id: string;
+		name: string;
+		emailAddress: string;
+		provider: string;
+	}
+
+	const AccountStore:
+	{
+		accounts(): MailspringAccount[];
+		accountForId(id: string): MailspringAccount | null;
+	};
 
 	interface MailspringContactRecord
 	{
