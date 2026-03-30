@@ -1,19 +1,11 @@
 import http from 'http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import
-{
-	DatabaseStore,
-	Thread,
-	Message,
-	Contact,
-	Folder,
-	Label,
-} from 'mailspring-exports';
+import { DatabaseStore, Thread, Message, Contact, Folder, Label, MailspringThread, MailspringMessage, MailspringContact } from 'mailspring-exports';
 
 const MCP_PORT = 2525;
-let httpServer = null;
+let httpServer: http.Server | null = null;
 
 export function activate()
 {
@@ -31,16 +23,19 @@ export function deactivate()
 	}
 }
 
-function createMcpServer()
+function createMcpServer(): McpServer
 {
 	const server = new McpServer({ name: "mailspring", version: "1.0.0" });
 
-	server.tool(
+	// @ts-expect-error TS2589: Zod + MCP SDK deep type instantiation
+	server.registerTool(
 		"search_emails",
-		"Search through emails by keyword via full-text search. Returns matching threads.",
 		{
-			query: z.string().describe("Search query string"),
-			limit: z.number().min(1).max(200).default(25).describe("Max results to return"),
+			description: "Search through emails by keyword via full-text search. Returns matching threads.",
+			inputSchema: {
+				query: z.string().describe("Search query string"),
+				limit: z.number().default(25).describe("Max results to return (1-200)"),
+			},
 		},
 		async ({ query, limit }) =>
 		{
@@ -51,10 +46,12 @@ function createMcpServer()
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		"read_email",
-		"Read a specific email by its ID, including the full body content.",
-		{ id: z.string().describe("The message ID") },
+		{
+			description: "Read a specific email by its ID, including the full body content.",
+			inputSchema: { id: z.string().describe("The message ID") },
+		},
 		async ({ id }) =>
 		{
 			const message = await DatabaseStore.find(Message, id)
@@ -70,16 +67,19 @@ function createMcpServer()
 		}
 	);
 
-	server.tool(
+	// @ts-expect-error TS2589: Zod + MCP SDK deep type instantiation
+	server.registerTool(
 		"list_threads",
-		"List email threads with optional filters for folder, label, unread/starred status.",
 		{
-			folder: z.string().optional().describe("Filter by folder path (e.g. 'INBOX', 'Sent Mail')"),
-			label: z.string().optional().describe("Filter by label path"),
-			unread: z.boolean().optional().describe("Filter by unread status"),
-			starred: z.boolean().optional().describe("Filter by starred status"),
-			limit: z.number().min(1).max(200).default(25).describe("Max results"),
-			offset: z.number().min(0).default(0).describe("Offset for pagination"),
+			description: "List email threads with optional filters for folder, label, unread/starred status.",
+			inputSchema: {
+				folder: z.string().optional().describe("Filter by folder path (e.g. 'INBOX', 'Sent Mail')"),
+				label: z.string().optional().describe("Filter by label path"),
+				unread: z.boolean().optional().describe("Filter by unread status"),
+				starred: z.boolean().optional().describe("Filter by starred status"),
+				limit: z.number().default(25).describe("Max results (1-200)"),
+				offset: z.number().default(0).describe("Offset for pagination"),
+			},
 		},
 		async ({ folder, label, unread, starred, limit, offset }) =>
 		{
@@ -126,10 +126,12 @@ function createMcpServer()
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		"read_thread",
-		"Read a full email thread including all messages in the conversation.",
-		{ id: z.string().describe("The thread ID") },
+		{
+			description: "Read a full email thread including all messages in the conversation.",
+			inputSchema: { id: z.string().describe("The thread ID") },
+		},
 		async ({ id }) =>
 		{
 			const thread = await DatabaseStore.find(Thread, id);
@@ -145,13 +147,15 @@ function createMcpServer()
 		}
 	);
 
-	server.tool(
+	server.registerTool(
 		"list_contacts",
-		"List or search contacts from the address book.",
 		{
-			search: z.string().optional().describe("Search by name or email"),
-			limit: z.number().min(1).max(200).default(50).describe("Max results"),
-			offset: z.number().min(0).default(0).describe("Offset for pagination"),
+			description: "List or search contacts from the address book.",
+			inputSchema: {
+				search: z.string().optional().describe("Search by name or email"),
+				limit: z.number().default(50).describe("Max results (1-200)"),
+				offset: z.number().default(0).describe("Offset for pagination"),
+			},
 		},
 		async ({ search, limit, offset }) =>
 		{
@@ -174,7 +178,7 @@ function createMcpServer()
 		}
 	);
 
-	server.tool("list_folders", "List all email folders/mailboxes.", {}, async () =>
+	server.registerTool("list_folders", { description: "List all email folders/mailboxes." }, async () =>
 	{
 		const folders = await DatabaseStore.findAll(Folder);
 		return json(folders.map(f => ({
@@ -185,7 +189,7 @@ function createMcpServer()
 		})));
 	});
 
-	server.tool("list_labels", "List all email labels (Gmail labels, etc.).", {}, async () =>
+	server.registerTool("list_labels", { description: "List all email labels (Gmail labels, etc.)." }, async () =>
 	{
 		const labels = await DatabaseStore.findAll(Label);
 		return json(labels.map(l => ({
@@ -196,10 +200,12 @@ function createMcpServer()
 		})));
 	});
 
-	server.tool(
+	server.registerTool(
 		"get_recent_emails",
-		"Get the most recent emails.",
-		{ limit: z.number().min(1).max(200).default(20).describe("Max results") },
+		{
+			description: "Get the most recent emails.",
+			inputSchema: { limit: z.number().default(20).describe("Max results (1-200)") },
+		},
 		async ({ limit }) =>
 		{
 			const messages = await DatabaseStore.findAll(Message)
@@ -210,7 +216,7 @@ function createMcpServer()
 		}
 	);
 
-	server.tool("list_drafts", "List all draft emails.", {}, async () =>
+	server.registerTool("list_drafts", { description: "List all draft emails." }, async () =>
 	{
 		const drafts = await DatabaseStore.findAll(Message)
 			.where([Message.attributes.draft.equal(true)])
@@ -218,7 +224,7 @@ function createMcpServer()
 		return json(drafts.map(formatMessage));
 	});
 
-	server.tool("email_stats", "Get mailbox statistics.", {}, async () =>
+	server.registerTool("email_stats", { description: "Get mailbox statistics." }, async () =>
 	{
 		const [messages, threads, contacts, folders, labels, unread] = await Promise.all([
 			DatabaseStore.findAll(Message).count(),
@@ -234,46 +240,17 @@ function createMcpServer()
 	return server;
 }
 
-function startServer()
+function startServer(): void
 {
-	const sessions = new Map();
+	const mcpServer = createMcpServer();
+	const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
-	httpServer = http.createServer(async (req, res) =>
+	httpServer = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) =>
 	{
-		const url = new URL(req.url, `http://127.0.0.1:${MCP_PORT}`);
-
-		if (req.method === 'GET' && url.pathname === '/sse')
-		{
-			const mcpServer = createMcpServer();
-			const transport = new SSEServerTransport('/message', res);
-			sessions.set(transport.sessionId, { server: mcpServer, transport });
-
-			res.on('close', () =>
-			{
-				sessions.delete(transport.sessionId);
-			});
-
-			await mcpServer.connect(transport);
-		} else if (req.method === 'POST' && url.pathname === '/message')
-		{
-			const sessionId = url.searchParams.get('sessionId');
-			const session = sessions.get(sessionId);
-			if (session)
-			{
-				await session.transport.handlePostMessage(req, res);
-			} else
-			{
-				res.writeHead(404);
-				res.end('Session not found');
-			}
-		} else
-		{
-			res.writeHead(404);
-			res.end('Not found');
-		}
+		await transport.handleRequest(req, res);
 	});
 
-	httpServer.on('error', (err) =>
+	httpServer.on('error', (err: NodeJS.ErrnoException) =>
 	{
 		if (err.code === 'EADDRINUSE')
 		{
@@ -283,15 +260,17 @@ function startServer()
 		console.error('[mailspring-mcp] Server error:', err);
 	});
 
+	mcpServer.connect(transport);
+
 	httpServer.listen(MCP_PORT, '127.0.0.1', () =>
 	{
-		console.log(`[mailspring-mcp] MCP server listening on http://127.0.0.1:${MCP_PORT}/sse`);
+		console.log(`[mailspring-mcp] MCP server listening on http://127.0.0.1:${MCP_PORT}/mcp`);
 	});
 }
 
 // --- Formatters ---
 
-function formatThread(thread)
+function formatThread(thread: MailspringThread)
 {
 	return {
 		id: thread.id,
@@ -307,7 +286,7 @@ function formatThread(thread)
 	};
 }
 
-function formatMessage(msg)
+function formatMessage(msg: MailspringMessage)
 {
 	return {
 		id: msg.id,
@@ -325,7 +304,7 @@ function formatMessage(msg)
 	};
 }
 
-function formatContact(c)
+function formatContact(c: MailspringContact): string
 {
 	if (c.name)
 	{
@@ -334,17 +313,17 @@ function formatContact(c)
 	return c.email;
 }
 
-function json(data)
+function json(data: unknown)
 {
-	return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+	return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
 }
 
-function text(msg)
+function text(msg: string)
 {
-	return { content: [{ type: "text", text: msg }] };
+	return { content: [{ type: "text" as const, text: msg }] };
 }
 
-function stripHtml(html)
+function stripHtml(html: string): string
 {
 	return html
 		.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
