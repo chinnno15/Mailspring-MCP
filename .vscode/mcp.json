@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "mailspring": {
+      "url": "http://127.0.0.1:2525/sse"
+    }
+  }
+}

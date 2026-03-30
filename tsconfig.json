@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "jsx": "react",
+    "target": "es2017",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "lib": ["es2020", "dom"],
+    "inlineSourceMap": true,
+    "outDir": "lib",
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "typeRoots": ["./types/"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "mcp-server", "lib"]
+}
