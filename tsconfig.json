@@ -2,8 +2,8 @@
   "compilerOptions": {
     "jsx": "react",
     "target": "es2017",
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "node16",
+    "moduleResolution": "node16",
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "lib": ["es2020", "dom"],
@@ -11,6 +11,7 @@
     "outDir": "lib",
     "rootDir": "src",
     "skipLibCheck": true,
+		"types": ["node"],
     "typeRoots": ["./types/", "./node_modules/@types"]
   },
   "include": ["src/**/*"],
