@@ -7,7 +7,9 @@
     "url": "https://github.com/RyamosThomas/Mailspring-MCP"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "test:unit": "npm run build && node --test test/mutateThreads.test.mjs test/schema.test.mjs"
   },
   "engines": {
     "mailspring": ">=1.6.3"
@@ -15,7 +17,7 @@
   "windowTypes": {
     "default": true
   },
-  "description": "Mailspring MCP server plugin — exposes email data via Model Context Protocol",
+  "description": "Mailspring MCP server plugin \u2014 exposes email data via Model Context Protocol",
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
     "sanitize-html": "2.17.2",

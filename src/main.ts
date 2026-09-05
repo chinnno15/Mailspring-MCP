@@ -1,5 +1,4 @@
 import http from 'http';
-import crypto from 'crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
@@ -10,14 +9,36 @@ let httpServer: http.Server | null = null;
 
 export function activate()
 {
-	const mcpServer = new McpServer({ name: 'mailspring', version: '2.0.0' });
-
-	registerTools(mcpServer);
-	const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => crypto.randomUUID() });
-
 	httpServer = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) =>
 	{
-		await transport.handleRequest(req, res);
+		// Stateless: a fresh server + transport per request, so any number of
+		// clients can connect over the life of the app. A single shared transport
+		// accepts only one initialize and rejects every later client with
+		// "Server already initialized".
+		const mcpServer = new McpServer({ name: 'mailspring', version: '2.0.0' });
+		const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+
+		res.on('close', () =>
+		{
+			transport.close();
+			mcpServer.close();
+		});
+
+		try
+		{
+			registerTools(mcpServer);
+			await mcpServer.connect(transport);
+			await transport.handleRequest(req, res);
+		}
+		catch (err)
+		{
+			console.error('[mailspring-mcp] Request error:', err);
+			if (!res.headersSent)
+			{
+				res.writeHead(500, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null }));
+			}
+		}
 	});
 
 	httpServer.on('error', (err: NodeJS.ErrnoException) =>
@@ -29,8 +50,6 @@ export function activate()
 		}
 		console.error('[mailspring-mcp] Server error:', err);
 	});
-
-	mcpServer.connect(transport);
 
 	httpServer.listen(MCP_PORT, '127.0.0.1', () =>
 	{

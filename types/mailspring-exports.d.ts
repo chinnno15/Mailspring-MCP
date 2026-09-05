@@ -184,4 +184,18 @@ declare module 'mailspring-exports'
 		register(component: any, options: { role: string }): void;
 		unregister(component: any): void;
 	};
+
+	interface MailspringTask { }
+
+	const TaskFactory:
+	{
+		tasksForArchiving(opts: { threads: MailspringThread[]; source: string }): MailspringTask[];
+		tasksForMovingToTrash(opts: { threads: MailspringThread[]; source: string }): MailspringTask[];
+	};
+
+	const Actions:
+	{
+		queueTask(task: MailspringTask): void;
+		queueTasks(tasks: MailspringTask[]): void;
+	};
 }

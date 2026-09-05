@@ -18,7 +18,17 @@ Use this if you want to install the plugin into Mailspring and run it normally.
 
 2. Install the built plugin into Mailspring through Mailspring's plugin install flow, or place the built plugin directory in Mailspring's `packages` directory.
 
-3. Restart Mailspring. The MCP server starts automatically on `http://127.0.0.1:2525/mcp`.
+3. Restart Mailspring.
+
+### Tests
+
+```bash
+npm test        # builds, then runs unit + integration tests
+npm run test:unit   # unit tests only, no running Mailspring needed
+```
+
+The integration tests exercise the live MCP endpoint on `127.0.0.1:2525` and skip automatically
+when Mailspring is not running. The MCP server starts automatically on `http://127.0.0.1:2525/mcp`.
 
 ## MCP Configuration
 
@@ -52,6 +62,16 @@ Use this if you are actively working on the plugin code.
 
 3. Restart Mailspring.
 
+### Tests
+
+```bash
+npm test        # builds, then runs unit + integration tests
+npm run test:unit   # unit tests only, no running Mailspring needed
+```
+
+The integration tests exercise the live MCP endpoint on `127.0.0.1:2525` and skip automatically
+when Mailspring is not running.
+
 
 
 ## Available Tools
@@ -69,3 +89,17 @@ Use this if you are actively working on the plugin code.
 | `get_recent_emails` | Get recent emails with date range filtering and pagination |
 | `list_drafts` | List draft emails with pagination |
 | `email_stats` | Get mailbox statistics |
+
+### Mutations
+
+These two go through Mailspring's own `TaskFactory` and task queue, so they sync back to the
+provider exactly as the UI's buttons do, group correctly across multiple accounts, and remain
+undoable from Mailspring. Neither permanently deletes anything.
+
+| Tool | Description |
+|------|-------------|
+| `archive_threads` | Archive threads by ID. On Gmail accounts this removes the `INBOX` label rather than moving folders. Accepts up to 200 IDs per call. |
+| `trash_threads` | Move threads to Trash by ID. Recoverable until the provider purges Trash (30 days on Gmail). Accepts up to 200 IDs per call. |
+
+Both report `{ requested, matched, archived|trashed, tasksQueued, missing }` so a caller can tell
+which IDs matched nothing.
