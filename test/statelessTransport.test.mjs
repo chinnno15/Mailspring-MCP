@@ -6,11 +6,27 @@
 //
 // Integration test: needs Mailspring running with the plugin loaded. Skips otherwise.
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import http from 'node:http';
 import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
 const URL = 'http://127.0.0.1:2525/mcp';
-const HEADERS = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
+
+const readToken = () =>
+{
+	const file = path.join(os.homedir(), '.config', 'Mailspring', 'mailspring-mcp-token');
+	return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim() : null;
+};
+const TOKEN = readToken();
+
+const HEADERS = {
+	'Content-Type': 'application/json',
+	Accept: 'application/json, text/event-stream',
+	...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}),
+};
 
 const reachable = () => new Promise((resolve) =>
 {
@@ -21,9 +37,9 @@ const reachable = () => new Promise((resolve) =>
 	sock.on('timeout', () => { sock.destroy(); resolve(false); });
 });
 
-async function rpc(body)
+async function rpc(body, headers = HEADERS)
 {
-	const res = await fetch(URL, { method: 'POST', headers: HEADERS, body: JSON.stringify(body) });
+	const res = await fetch(URL, { method: 'POST', headers, body: JSON.stringify(body) });
 	const text = await res.text();
 	const line = text.split('\n').map(l => (l.startsWith('data: ') ? l.slice(6) : l)).find(l => l.startsWith('{'));
 	return { status: res.status, payload: line ? JSON.parse(line) : null };
@@ -73,6 +89,54 @@ describe('stateless transport', { skip: !(await reachable()) && 'Mailspring MCP 
 		});
 		const body = JSON.stringify(payload);
 		assert.ok(payload?.error || payload?.result?.isError, `expected rejection, got: ${body.slice(0, 200)}`);
+	});
+
+	it('rejects a request with no Authorization header', async () =>
+	{
+		const { 'Authorization': _drop, ...anonymous } = HEADERS;
+		const { status } = await rpc({ jsonrpc: '2.0', id: 9, method: 'tools/list' }, anonymous);
+		assert.equal(status, 401, 'an unauthenticated local process must not reach the tools');
+	});
+
+	it('rejects a request bearing the wrong token', async () =>
+	{
+		const { status } = await rpc(
+			{ jsonrpc: '2.0', id: 10, method: 'tools/list' },
+			{ ...HEADERS, Authorization: `Bearer ${'0'.repeat(64)}` },
+		);
+		assert.equal(status, 401);
+	});
+
+	// fetch() forbids setting Host, so these go through node:http directly.
+	const raw = (headers) => new Promise((resolve, reject) =>
+	{
+		const body = JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/list' });
+		const req = http.request(
+			{ host: '127.0.0.1', port: 2525, path: '/mcp', method: 'POST', headers: { ...headers, 'Content-Length': Buffer.byteLength(body) } },
+			(res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); },
+		);
+		req.on('error', reject);
+		req.end(body);
+	});
+
+	it('rejects a forged Host header (DNS rebinding protection)', async () =>
+	{
+		assert.equal(await raw({ ...HEADERS, Host: 'evil.example.com' }), 403);
+	});
+
+	it('serves a correct Host header', async () =>
+	{
+		assert.equal(await raw({ ...HEADERS, Host: '127.0.0.1:2525' }), 200);
+	});
+
+	it('rejects a cross-site Origin', async () =>
+	{
+		assert.equal(await raw({ ...HEADERS, Origin: 'https://evil.example.com' }), 403);
+	});
+
+	it('still serves a client that sends no Origin at all', async () =>
+	{
+		assert.equal(await raw(HEADERS), 200);
 	});
 
 	it('reports unknown thread ids as missing without queueing anything', async () =>

@@ -30,6 +30,29 @@ npm run test:unit   # unit tests only, no running Mailspring needed
 The integration tests exercise the live MCP endpoint on `127.0.0.1:2525` and skip automatically
 when Mailspring is not running. The MCP server starts automatically on `http://127.0.0.1:2525/mcp`.
 
+## Authentication
+
+The server binds loopback only, but loopback is not a trust boundary — every process on the
+machine can reach it, and these tools can mutate mail. Requests must therefore present a shared
+bearer token.
+
+On first launch the plugin generates one into Mailspring's config directory as
+`mailspring-mcp-token`, mode `0600`. Pass it to your client as an `Authorization` header:
+
+```bash
+claude mcp add --scope user --transport http mailspring http://127.0.0.1:2525/mcp \
+  --header "Authorization: Bearer $(cat ~/.config/Mailspring/mailspring-mcp-token)"
+```
+
+This is deliberately **not** the OAuth 2.1 flow the MCP spec defines for remote servers. There is no
+third party to delegate to and no consent to obtain for a single-user process on loopback, so a
+static token is the proportionate control. Note that a client which connects *without* the token
+receives a 401 and may then attempt OAuth discovery, which will fail — if you see a registration
+error, the token is missing or stale rather than the server being broken.
+
+Requests are also checked for DNS rebinding: the `Host` header must be loopback, and a cross-site
+`Origin` is refused. Clients that send no `Origin` (any non-browser client) are unaffected.
+
 ## MCP Configuration
 
 Import the configuration using the following JSON snippet, example vscode snippet included in repo:

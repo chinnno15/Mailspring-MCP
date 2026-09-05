@@ -199,3 +199,8 @@ declare module 'mailspring-exports'
 		queueTasks(tasks: MailspringTask[]): void;
 	};
 }
+
+declare const AppEnv:
+{
+	getConfigDirPath(): string;
+};
