@@ -1,7 +1,18 @@
 {
   "mcpServers": {
     "mailspring": {
-      "url": "http://127.0.0.1:2525/mcp"
+      "url": "http://127.0.0.1:2525/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:mailspringToken}"
+      }
     }
-  }
+  },
+  "inputs": [
+    {
+      "id": "mailspringToken",
+      "type": "promptString",
+      "password": true,
+      "description": "Contents of ~/.config/Mailspring/mailspring-mcp-token"
+    }
+  ]
 }

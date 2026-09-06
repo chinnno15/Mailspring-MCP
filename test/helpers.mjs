@@ -1,7 +1,10 @@
 // Minimal fakes standing in for the slice of mailspring-exports the mutations use.
-export function makeDeps({ threads = [], tasks = null, throwOnQueue = false } = {})
+export class FakeLabel { constructor(path, role) { this.path = path; this.role = role; } }
+export class FakeFolder { constructor(path, role) { this.path = path; this.role = role; } }
+
+export function makeDeps({ threads = [], tasks = null, throwOnQueue = false, inboxIsLabel = true, noInbox = false, noAllMail = false } = {})
 {
-	const calls = { where: [], archiving: 0, trashing: 0, queued: [], sources: [] };
+	const calls = { where: [], archiving: 0, trashing: 0, queued: [], sources: [], folderTasks: [], labelTasks: [] };
 
 	const Thread = { attributes: { id: { in: (ids) => ({ op: 'in', ids }) } } };
 
@@ -41,7 +44,44 @@ export function makeDeps({ threads = [], tasks = null, throwOnQueue = false } = 
 		},
 	};
 
-	return { deps: { DatabaseStore, TaskFactory, Actions, Thread }, calls };
+	// Grouping mirrors the real TaskFactory: arrays from the callback are flattened,
+	// null/undefined are dropped.
+	TaskFactory.tasksForThreadsByAccountId = (given, cb) =>
+	{
+		const byAccount = new Map();
+		given.forEach((t) => {
+			const id = t.accountId ?? 'acct1';
+			if (!byAccount.has(id)) byAccount.set(id, []);
+			byAccount.get(id).push(t);
+		});
+		const out = [];
+		for (const [id, accountThreads] of byAccount)
+		{
+			const r = cb(accountThreads, id);
+			if (Array.isArray(r)) out.push(...r);
+			else if (r) out.push(r);
+		}
+		return out;
+	};
+
+	const inbox = noInbox ? null : (inboxIsLabel ? new FakeLabel('INBOX', 'inbox') : new FakeFolder('INBOX', 'inbox'));
+	const allMail = noAllMail ? null : new FakeFolder('[Gmail]/All Mail', 'all');
+	const CategoryStore = {
+		getInboxCategory: () => inbox,
+		getAllMailCategory: () => allMail,
+	};
+
+	class ChangeFolderTask { constructor(o) { Object.assign(this, o); this.type = 'folder'; calls.folderTasks.push(this); } }
+	class ChangeLabelsTask { constructor(o) { Object.assign(this, o); this.type = 'labels'; calls.labelTasks.push(this); } }
+
+	return {
+		deps: { DatabaseStore, TaskFactory, Actions, Thread, CategoryStore, Label: FakeLabel, ChangeFolderTask, ChangeLabelsTask },
+		calls,
+		fixtures: { inbox, allMail },
+	};
 }
 
-export const threadsFixture = (...ids) => ids.map(id => ({ id, subject: `subject ${id}` }));
+export const threadsFixture = (...ids) => ids.map(id => ({ id, subject: `subject ${id}`, accountId: 'acct1', folders: [{ role: 'all' }] }));
+
+/** A thread sitting in Trash — must be moved out of that folder before a label restores it. */
+export const trashedThread = (id, accountId = 'acct1') => ({ id, subject: `subject ${id}`, accountId, folders: [{ role: 'trash' }] });

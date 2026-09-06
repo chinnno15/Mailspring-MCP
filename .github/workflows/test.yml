@@ -1,0 +1,22 @@
+name: test
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      # Unit tests only: the integration suite needs a running Mailspring and
+      # skips itself, so running it in CI would prove nothing.
+      - run: npm run test:unit

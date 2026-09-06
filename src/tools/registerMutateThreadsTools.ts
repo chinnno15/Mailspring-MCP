@@ -1,4 +1,4 @@
-import { Actions, DatabaseStore, TaskFactory, Thread } from 'mailspring-exports';
+import { Actions, CategoryStore, ChangeFolderTask, ChangeLabelsTask, DatabaseStore, Label, TaskFactory, Thread } from 'mailspring-exports';
 import { json } from '../helpers';
 import { MAX_BATCH, MutationKind, MutationDeps, applyThreadTasks, threadIdsInputSchema } from '../mutateThreads';
 import { ToolServer } from '../types';
@@ -8,7 +8,7 @@ interface ThreadIdsParams
 	threadIds: string[];
 }
 
-const deps = { DatabaseStore, TaskFactory, Actions, Thread } as unknown as MutationDeps;
+const deps = { DatabaseStore, TaskFactory, Actions, Thread, CategoryStore, Label, ChangeFolderTask, ChangeLabelsTask } as unknown as MutationDeps;
 
 async function run(params: ThreadIdsParams, kind: MutationKind)
 {
@@ -36,5 +36,17 @@ export function registerTrashThreadsTool(server: ToolServer): void
 			inputSchema: threadIdsInputSchema,
 		},
 		(params: ThreadIdsParams) => run(params, 'trash')
+	);
+}
+
+export function registerUnarchiveThreadsTool(server: ToolServer): void
+{
+	server.registerTool(
+		'unarchive_threads',
+		{
+			description: `Move threads back into the inbox by ID — the inverse of archive_threads, and also the way to pull a thread back out of Trash. On Gmail accounts this restores the INBOX label, moving the thread out of Trash or Spam first when needed. Accepts up to ${MAX_BATCH} thread IDs per call.`,
+			inputSchema: threadIdsInputSchema,
+		},
+		(params: ThreadIdsParams) => run(params, 'inbox')
 	);
 }

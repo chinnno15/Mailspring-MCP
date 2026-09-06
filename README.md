@@ -123,6 +123,7 @@ undoable from Mailspring. Neither permanently deletes anything.
 |------|-------------|
 | `archive_threads` | Archive threads by ID. On Gmail accounts this removes the `INBOX` label rather than moving folders. Accepts up to 200 IDs per call. |
 | `trash_threads` | Move threads to Trash by ID. Recoverable until the provider purges Trash (30 days on Gmail). Accepts up to 200 IDs per call. |
+| `unarchive_threads` | Move threads back into the inbox — the inverse of `archive_threads`, and also how you pull a thread back out of Trash. On Gmail this restores the `INBOX` label, moving the thread out of Trash or Spam first when needed. Accepts up to 200 IDs per call. |
 
-Both report `{ requested, matched, archived|trashed, tasksQueued, missing }` so a caller can tell
-which IDs matched nothing.
+Each reports `{ requested, matched, archived|trashed|movedToInbox, tasksQueued, missing }` so a
+caller can tell which IDs matched nothing.

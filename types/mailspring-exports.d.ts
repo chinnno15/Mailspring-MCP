@@ -191,6 +191,7 @@ declare module 'mailspring-exports'
 	{
 		tasksForArchiving(opts: { threads: MailspringThread[]; source: string }): MailspringTask[];
 		tasksForMovingToTrash(opts: { threads: MailspringThread[]; source: string }): MailspringTask[];
+		tasksForThreadsByAccountId(threads: MailspringThread[], cb: (accountThreads: MailspringThread[], accountId: string) => any): MailspringTask[];
 	};
 
 	const Actions:
@@ -198,6 +199,25 @@ declare module 'mailspring-exports'
 		queueTask(task: MailspringTask): void;
 		queueTasks(tasks: MailspringTask[]): void;
 	};
+
+	const CategoryStore:
+	{
+		getInboxCategory(accountId: string): MailspringFolder | MailspringLabel | null;
+		getAllMailCategory(accountId: string): MailspringFolder | null;
+		getArchiveCategory(accountId: string): MailspringFolder | null;
+		getTrashCategory(accountId: string): MailspringFolder | null;
+	};
+
+	class ChangeFolderTask
+	{
+		constructor(opts: { folder: any; threads: MailspringThread[]; source: string });
+	}
+
+	class ChangeLabelsTask
+	{
+		constructor(opts: { labelsToAdd: any[]; labelsToRemove: any[]; threads: MailspringThread[]; source: string });
+	}
+
 }
 
 declare const AppEnv:
