@@ -112,6 +112,19 @@ when Mailspring is not running.
 | `get_recent_emails` | Get recent emails with date range filtering and pagination |
 | `list_drafts` | List draft emails with pagination |
 | `email_stats` | Get mailbox statistics |
+| `count_threads` | Count threads matching a filter without fetching them. Returns totals and a per-account breakdown. |
+| `grep_threads` | Regex search over message bodies, subjects and senders. Returns thread IDs and match counts rather than content, so it stays small. Answers what FTS cannot — "which threads mention @someone". |
+| `sync_status` | Pending task queue. The mutation tools return once tasks are *queued*, not once they have reached the provider — poll until `idle` before treating a bulk change as landed. |
+
+`list_threads` and `search_emails` take `compact: true` for a much smaller row
+(`{id, accountId, from, subject, date, unread, messageCount}`), and
+`includeMessageSubjects: true` to get every message subject in a thread rather
+than only the newest — needed to classify a thread by its whole history.
+
+> **Note on `grep_threads` and GitHub mail:** a GitHub notification embeds the
+> comment author's avatar as `alt="@username"`, so a bare `@username` pattern
+> matches threads *you wrote* as well as threads that mention you. Match the
+> link form (`github.com/<user>">@<user>`) when you specifically want mentions.
 
 ### Mutations
 

@@ -1,6 +1,8 @@
-import { AccountStore, DatabaseStore, Folder, Label, MailspringContact, MailspringFile, MailspringMessage, MailspringThread, Thread } from 'mailspring-exports';
+import { AccountStore, DatabaseStore, Folder, Label, MailspringContact, MailspringFile, MailspringMessage, MailspringThread, Message, Thread } from 'mailspring-exports';
 import sanitizeHtmlLib from 'sanitize-html';
 
+import { CompactThread, groupByThread, toCompact } from './compact';
+import { selectCategoryIds } from './filters';
 import { ThreadFilterParams } from './types';
 
 const htmlSanitizerOptions = {
@@ -88,23 +90,24 @@ export async function buildThreadMatchers(params: ThreadFilterParams): Promise<a
 		matchers.push(Thread.attributes.lastMessageReceivedTimestamp.lessThanOrEqualTo(new Date(params.dateTo)));
 	}
 
-	if (params.folder)
-	{
-		const folders = await DatabaseStore.findAll(Folder);
-		const match = folders.find(folder => folder.path.toLowerCase().includes(params.folder!.toLowerCase()));
-		if (match)
-		{
-			matchers.push(Thread.attributes.categories.contains(match.id));
-		}
-	}
+	// A name is matched against BOTH folders and labels, across every account.
+	// See selectCategoryIds for why an unmatched name throws rather than
+	// silently degrading the query to "every thread".
+	const categoryFilters: { value: string; kind: string }[] = [];
+	if (params.folder) categoryFilters.push({ value: params.folder, kind: 'folder' });
+	if (params.label) categoryFilters.push({ value: params.label, kind: 'label' });
 
-	if (params.label)
+	if (categoryFilters.length)
 	{
-		const labels = await DatabaseStore.findAll(Label);
-		const match = labels.find(label => label.path.toLowerCase().includes(params.label!.toLowerCase()));
-		if (match)
+		const [folders, labels] = await Promise.all([
+			DatabaseStore.findAll(Folder),
+			DatabaseStore.findAll(Label),
+		]);
+		const all = [...folders, ...labels] as { id: string; path?: string }[];
+
+		for (const filter of categoryFilters)
 		{
-			matchers.push(Thread.attributes.categories.contains(match.id));
+			matchers.push(Thread.attributes.categories.containsAny(selectCategoryIds(all, filter.value, filter.kind)));
 		}
 	}
 
@@ -238,4 +241,19 @@ export function stripHtml(html: string): string
 		.replace(/&nbsp;/g, ' ')
 		.replace(/\s+/g, ' ')
 		.trim();
+}
+
+/**
+ * Project threads into compact rows, fetching their messages in one query
+ * rather than per-thread.
+ */
+export async function compactThreads(threads: MailspringThread[], includeMessageSubjects = false): Promise<CompactThread[]>
+{
+	if (!threads.length) return [];
+
+	const ids = threads.map(thread => thread.id);
+	const messages = await DatabaseStore.findAll(Message).where([Message.attributes.threadId.in(ids)]);
+	const byThread = groupByThread(messages);
+
+	return threads.map(thread => toCompact(thread, byThread.get(thread.id), includeMessageSubjects));
 }

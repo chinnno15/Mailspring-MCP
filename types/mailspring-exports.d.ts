@@ -37,6 +37,7 @@ declare module 'mailspring-exports'
 
 	interface ModelQuery<T> extends Promise<T[]>
 	{
+		include(attr: any): ModelQuery<T>;
 		where(matchers: Matcher[]): ModelQuery<T>;
 		whereAny(matchers: Matcher[]): ModelQuery<T>;
 		search(query: string): ModelQuery<T>;
@@ -198,6 +199,11 @@ declare module 'mailspring-exports'
 	{
 		queueTask(task: MailspringTask): void;
 		queueTasks(tasks: MailspringTask[]): void;
+	};
+
+	const TaskQueue:
+	{
+		queue(): any[];
 	};
 
 	const CategoryStore:

@@ -1,10 +1,10 @@
 import { DatabaseStore, Thread } from 'mailspring-exports';
 import { z } from 'zod';
 
-import { buildThreadMatchers, enrichThread, json } from '../helpers';
+import { buildThreadMatchers, compactThreads, enrichThread, json } from '../helpers';
 import { ListThreadsParams, ToolServer } from '../types';
 
-const listThreadsDescription = 'List email threads with filters for folder, label, unread/starred status, date range, and attachments. Returns enriched thread metadata including message count and last sender.';
+const listThreadsDescription = 'List email threads with filters for folder, label, unread/starred status, date range, and attachments. Returns enriched thread metadata by default; pass compact:true for a much smaller row shape that allows large pages.';
 
 const listThreadsInputSchema = {
 	folder: z.string().optional().describe("Filter by folder path (e.g. 'INBOX', 'Sent Mail')"),
@@ -15,6 +15,8 @@ const listThreadsInputSchema = {
 	dateFrom: z.string().optional().describe('Only threads with messages after this date (ISO 8601)'),
 	dateTo: z.string().optional().describe('Only threads with messages before this date (ISO 8601)'),
 	limit: z.number().default(25).describe('Max results (1-500)'),
+	compact: z.boolean().default(false).describe('Return only {id, accountId, from, subject, date, unread, messageCount} — far smaller, so large pages fit in a response'),
+	includeMessageSubjects: z.boolean().default(false).describe('With compact, also return every message subject in each thread (needed to classify a thread by its whole history, not just its newest message)'),
 	offset: z.number().default(0).describe('Offset for pagination'),
 };
 
@@ -36,6 +38,11 @@ async function handleListThreads(params: ListThreadsParams)
 	if (!!params.hasAttachment)
 	{
 		threads = threads.filter(thread => thread.attachmentCount > 0);
+	}
+
+	if (params.compact)
+	{
+		return json(await compactThreads(threads, !!params.includeMessageSubjects));
 	}
 
 	const results = await Promise.all(threads.map(enrichThread));

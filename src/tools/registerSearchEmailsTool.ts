@@ -1,7 +1,7 @@
 import { DatabaseStore, Thread } from 'mailspring-exports';
 import { z } from 'zod';
 
-import { buildThreadMatchers, enrichThread, filterThreadsByParticipant, json } from '../helpers';
+import { buildThreadMatchers, compactThreads, enrichThread, filterThreadsByParticipant, json } from '../helpers';
 import { SearchEmailsParams, ToolServer } from '../types';
 
 const searchEmailsDescription = 'Search emails with full-text search and optional structured filters. The query field supports FTS5 syntax: use OR for alternatives (interview OR callback), quoted phrases for exact match ("phone screen"), prefix matching (sched*), and NOT to exclude terms. Combine with structured filters for precise results.';
@@ -19,6 +19,8 @@ const searchEmailsInputSchema = {
 	folder: z.string().optional().describe("Filter by folder path (e.g. 'INBOX')"),
 	label: z.string().optional().describe('Filter by label path'),
 	limit: z.number().default(50).describe('Max results (1-500)'),
+	compact: z.boolean().default(false).describe('Return only {id, accountId, from, subject, date, unread, messageCount} — far smaller, so large pages fit in a response'),
+	includeMessageSubjects: z.boolean().default(false).describe('With compact, also return every message subject in each thread'),
 	offset: z.number().default(0).describe('Offset for pagination'),
 };
 
@@ -52,6 +54,11 @@ async function handleSearchEmails(params: SearchEmailsParams)
 	if (params.hasAttachment !== undefined)
 	{
 		threads = threads.filter(thread => params.hasAttachment ? thread.attachmentCount > 0 : thread.attachmentCount === 0);
+	}
+
+	if (params.compact)
+	{
+		return json(await compactThreads(threads, !!params.includeMessageSubjects));
 	}
 
 	return json(await Promise.all(threads.map(enrichThread)));

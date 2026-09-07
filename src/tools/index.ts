@@ -2,6 +2,7 @@ import { ToolServer } from '../types';
 
 import { registerBatchReadEmailsTool } from './registerBatchReadEmailsTool';
 import { registerArchiveThreadsTool, registerTrashThreadsTool, registerUnarchiveThreadsTool } from './registerMutateThreadsTools';
+import { registerCountThreadsTool, registerGrepThreadsTool, registerSyncStatusTool } from './registerTriageTools';
 import { registerEmailStatsTool } from './registerEmailStatsTool';
 import { registerGetRecentEmailsTool } from './registerGetRecentEmailsTool';
 import { registerListContactsTool } from './registerListContactsTool';
@@ -29,4 +30,7 @@ export function registerTools(server: ToolServer): void
 	registerArchiveThreadsTool(server);
 	registerTrashThreadsTool(server);
 	registerUnarchiveThreadsTool(server);
+	registerCountThreadsTool(server);
+	registerGrepThreadsTool(server);
+	registerSyncStatusTool(server);
 }

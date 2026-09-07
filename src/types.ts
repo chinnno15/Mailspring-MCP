@@ -17,6 +17,8 @@ export interface SearchEmailsParams extends ThreadFilterParams
 	subject?: string;
 	limit: number;
 	offset: number;
+	compact?: boolean;
+	includeMessageSubjects?: boolean;
 }
 
 export interface ReadByIdParams
@@ -28,6 +30,8 @@ export interface ListThreadsParams extends ThreadFilterParams
 {
 	limit: number;
 	offset: number;
+	compact?: boolean;
+	includeMessageSubjects?: boolean;
 }
 
 export interface ListContactsParams
