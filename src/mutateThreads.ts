@@ -34,6 +34,14 @@ export interface MutationDeps
 	ChangeLabelsTask: new (opts: { labelsToAdd: unknown[]; labelsToRemove: unknown[]; threads: MailspringThread[]; source: string }) => unknown;
 }
 
+export interface PreviewRow
+{
+	id: string;
+	accountId: string;
+	subject: string;
+	covered: boolean;
+}
+
 export interface MutationResult
 {
 	requested: number;
@@ -43,6 +51,47 @@ export interface MutationResult
 	movedToInbox?: number;
 	tasksQueued: number;
 	missing: string[];
+	/** Matched threads that no task covers — they will not move. See coveredThreadIds. */
+	unaffected?: string[];
+	unaffectedAccounts?: string[];
+	dryRun?: true;
+	preview?: PreviewRow[];
+}
+
+export interface MutationOptions
+{
+	dryRun?: boolean;
+	previewLimit?: number;
+}
+
+export const DEFAULT_PREVIEW_LIMIT = 50;
+
+/**
+ * Thread ids that the built tasks actually act on.
+ *
+ * TaskFactory returns null for an account with no suitable category, and those
+ * nulls are dropped before queueing — so a batch spanning several accounts could
+ * report success while silently leaving one account's threads untouched. Reading
+ * coverage back off the tasks catches that and any other gap, rather than
+ * special-casing the one cause.
+ */
+export function coveredThreadIds(tasks: unknown[]): Set<string>
+{
+	const covered = new Set<string>();
+
+	tasks.forEach((task) =>
+	{
+		const t = task as { threadIds?: string[]; threads?: { id?: string }[] } | null;
+		if (!t) return;
+
+		// ChangeMailTask's constructor consumes `threads` and keeps only
+		// `threadIds`, so that is the property to read on a real task. `threads`
+		// is accepted too for task types that retain it.
+		(t.threadIds || []).forEach(id => { if (id) covered.add(id); });
+		(t.threads || []).forEach(thread => { if (thread && thread.id) covered.add(thread.id); });
+	});
+
+	return covered;
 }
 
 export const SOURCE = 'mailspring-mcp';
@@ -99,7 +148,12 @@ export function tasksForMovingToInbox(deps: MutationDeps, threads: MailspringThr
  * TaskFactory groups threads by account and picks the right shape per account —
  * archiving a Gmail account removes the INBOX label rather than moving folders.
  */
-export async function applyThreadTasks(deps: MutationDeps, threadIds: string[], kind: MutationKind): Promise<MutationResult>
+export async function applyThreadTasks(
+	deps: MutationDeps,
+	threadIds: string[],
+	kind: MutationKind,
+	options: MutationOptions = {},
+): Promise<MutationResult>
 {
 	const requested = Array.from(new Set(threadIds));
 	const countKey = kind === 'archive' ? 'archived' : kind === 'trash' ? 'trashed' : 'movedToInbox';
@@ -110,7 +164,9 @@ export async function applyThreadTasks(deps: MutationDeps, threadIds: string[], 
 
 	if (!threads.length)
 	{
-		return { requested: requested.length, matched: 0, [countKey]: 0, tasksQueued: 0, missing: requested };
+		const empty: MutationResult = { requested: requested.length, matched: 0, [countKey]: 0, tasksQueued: 0, missing: requested };
+		if (options.dryRun) { empty.dryRun = true; empty.preview = []; }
+		return empty;
 	}
 
 	let tasks: unknown[];
@@ -120,15 +176,43 @@ export async function applyThreadTasks(deps: MutationDeps, threadIds: string[], 
 
 	// TaskFactory returns null for accounts with no archive/trash category.
 	const queued = tasks.filter(task => !!task);
-	queued.forEach(task => deps.Actions.queueTask(task));
 
+	const covered = coveredThreadIds(queued);
+	const unaffected = threads.filter(thread => !covered.has(thread.id));
 	const found = new Set(threads.map(thread => thread.id));
 
-	return {
+	// Only threads a task actually covers will move.
+	const willMove = threads.length - unaffected.length;
+
+	const result: MutationResult = {
 		requested: requested.length,
 		matched: threads.length,
-		[countKey]: threads.length,
+		[countKey]: willMove,
 		tasksQueued: queued.length,
 		missing: requested.filter(id => !found.has(id)),
 	};
+
+	if (unaffected.length)
+	{
+		result.unaffected = unaffected.map(thread => thread.id);
+		result.unaffectedAccounts = Array.from(new Set(unaffected.map(t => (t as unknown as { accountId: string }).accountId)));
+	}
+
+	if (options.dryRun)
+	{
+		result.dryRun = true;
+		result.preview = threads
+			.slice(0, options.previewLimit ?? DEFAULT_PREVIEW_LIMIT)
+			.map(thread => ({
+				id: thread.id,
+				accountId: (thread as unknown as { accountId: string }).accountId,
+				subject: thread.subject || '',
+				covered: covered.has(thread.id),
+			}));
+		return result;
+	}
+
+	queued.forEach(task => deps.Actions.queueTask(task));
+
+	return result;
 }

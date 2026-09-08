@@ -140,3 +140,12 @@ undoable from Mailspring. Neither permanently deletes anything.
 
 Each reports `{ requested, matched, archived|trashed|movedToInbox, tasksQueued, missing }` so a
 caller can tell which IDs matched nothing.
+
+**`dryRun: true`** resolves the threads and builds the tasks but queues nothing, returning the
+counts a real run would produce plus a per-thread `preview` with a `covered` flag. Use it before
+any bulk change.
+
+The counts report what will actually **move**, not what merely matched. TaskFactory yields no task
+for an account lacking a suitable category, so those threads are listed in `unaffected` /
+`unaffectedAccounts` and excluded from the count — a batch spanning accounts can no longer report
+success while silently leaving one account untouched.

@@ -13,12 +13,25 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
-const URL = 'http://127.0.0.1:2525/mcp';
+const HOST = process.env.MAILSPRING_MCP_HOST || '127.0.0.1';
+const PORT = Number(process.env.MAILSPRING_MCP_PORT || 2525);
+const URL = process.env.MAILSPRING_MCP_URL || `http://${HOST}:${PORT}/mcp`;
 
 const readToken = () =>
 {
-	const file = path.join(os.homedir(), '.config', 'Mailspring', 'mailspring-mcp-token');
-	return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim() : null;
+	if (process.env.MAILSPRING_MCP_TOKEN) return process.env.MAILSPRING_MCP_TOKEN.trim();
+
+	// Default config dir per platform; override with MAILSPRING_MCP_TOKEN_FILE
+	// for flatpak or a non-standard install.
+	const candidates = process.env.MAILSPRING_MCP_TOKEN_FILE
+		? [process.env.MAILSPRING_MCP_TOKEN_FILE]
+		: [
+			path.join(os.homedir(), '.config', 'Mailspring', 'mailspring-mcp-token'),
+			path.join(os.homedir(), '.var', 'app', 'com.getmailspring.Mailspring', 'config', 'Mailspring', 'mailspring-mcp-token'),
+			path.join(os.homedir(), 'Library', 'Application Support', 'Mailspring', 'mailspring-mcp-token'),
+		];
+	const found = candidates.find(f => fs.existsSync(f));
+	return found ? fs.readFileSync(found, 'utf8').trim() : null;
 };
 const TOKEN = readToken();
 
@@ -30,7 +43,7 @@ const HEADERS = {
 
 const reachable = () => new Promise((resolve) =>
 {
-	const sock = net.connect({ host: '127.0.0.1', port: 2525 });
+	const sock = net.connect({ host: HOST, port: PORT });
 	sock.setTimeout(1000);
 	sock.on('connect', () => { sock.destroy(); resolve(true); });
 	sock.on('error', () => resolve(false));
@@ -50,7 +63,7 @@ const initialize = () => rpc({
 	params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } },
 });
 
-describe('stateless transport', { skip: !(await reachable()) && 'Mailspring MCP not listening on 2525' }, () =>
+describe('stateless transport', { skip: !(await reachable()) && `Mailspring MCP not listening on ${HOST}:${PORT}` }, () =>
 {
 	it('accepts repeated initialize calls from independent clients', async () =>
 	{
@@ -112,7 +125,7 @@ describe('stateless transport', { skip: !(await reachable()) && 'Mailspring MCP 
 	{
 		const body = JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/list' });
 		const req = http.request(
-			{ host: '127.0.0.1', port: 2525, path: '/mcp', method: 'POST', headers: { ...headers, 'Content-Length': Buffer.byteLength(body) } },
+			{ host: HOST, port: PORT, path: '/mcp', method: 'POST', headers: { ...headers, 'Content-Length': Buffer.byteLength(body) } },
 			(res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); },
 		);
 		req.on('error', reject);
@@ -126,7 +139,7 @@ describe('stateless transport', { skip: !(await reachable()) && 'Mailspring MCP 
 
 	it('serves a correct Host header', async () =>
 	{
-		assert.equal(await raw({ ...HEADERS, Host: '127.0.0.1:2525' }), 200);
+		assert.equal(await raw({ ...HEADERS, Host: `${HOST}:${PORT}` }), 200);
 	});
 
 	it('rejects a cross-site Origin', async () =>

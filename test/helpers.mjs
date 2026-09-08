@@ -29,11 +29,15 @@ export function makeDeps({ threads = [], tasks = null, throwOnQueue = false, inb
 		return tasks !== null ? tasks : [{ kind, count: got.length }];
 	};
 
+	// A real ChangeMailTask consumes `threads` in its constructor and exposes
+	// only `threadIds`. The fake mirrors that exactly — carrying `threads`
+	// instead made coverage reporting look correct in tests while failing
+	// against the live app.
 	const TaskFactory = {
 		tasksForArchiving: (opts) => { calls.archiving += 1; calls.sources.push(opts.source);
-			return tasks !== null ? tasks : [{ kind: 'archive', count: opts.threads.length }]; },
+			return tasks !== null ? tasks : [{ kind: 'archive', threadIds: opts.threads.map(t => t.id) }]; },
 		tasksForMovingToTrash: (opts) => { calls.trashing += 1; calls.sources.push(opts.source);
-			return tasks !== null ? tasks : [{ kind: 'trash', count: opts.threads.length }]; },
+			return tasks !== null ? tasks : [{ kind: 'trash', threadIds: opts.threads.map(t => t.id) }]; },
 	};
 
 	const Actions = {
@@ -71,8 +75,9 @@ export function makeDeps({ threads = [], tasks = null, throwOnQueue = false, inb
 		getAllMailCategory: () => allMail,
 	};
 
-	class ChangeFolderTask { constructor(o) { Object.assign(this, o); this.type = 'folder'; calls.folderTasks.push(this); } }
-	class ChangeLabelsTask { constructor(o) { Object.assign(this, o); this.type = 'labels'; calls.labelTasks.push(this); } }
+	// Mirror ChangeMailTask: threads in, threadIds retained.
+	class ChangeFolderTask { constructor(o) { Object.assign(this, o); this.threadIds = (o.threads || []).map(t => t.id); this.type = 'folder'; calls.folderTasks.push(this); } }
+	class ChangeLabelsTask { constructor(o) { Object.assign(this, o); this.threadIds = (o.threads || []).map(t => t.id); this.type = 'labels'; calls.labelTasks.push(this); } }
 
 	return {
 		deps: { DatabaseStore, TaskFactory, Actions, Thread, CategoryStore, Label: FakeLabel, ChangeFolderTask, ChangeLabelsTask },
