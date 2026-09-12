@@ -1,14 +1,25 @@
 name: test
 
+# A push to a branch that has a PR open fires both triggers, so every PR push
+# used to burn two identical runs. Push is narrowed to main (which is what a
+# merge lands as); branch work is covered by the pull_request trigger.
 on:
   push:
-    branches: ['**']
+    branches: [main]
+    paths-ignore: ['**.md', 'LICENSE', '.vscode/**']
   pull_request:
+    paths-ignore: ['**.md', 'LICENSE', '.vscode/**']
+
+# Superseded runs are cancelled rather than left to finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         node: ['22', '24']
     steps:
@@ -16,7 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+          cache: npm
       - run: npm ci
       # Unit tests only: the integration suite needs a running Mailspring and
-      # skips itself, so running it in CI would prove nothing.
+      # skips itself, so running it here would prove nothing.
       - run: npm run test:unit
