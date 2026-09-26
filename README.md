@@ -113,7 +113,7 @@ when Mailspring is not running.
 | `list_drafts` | List draft emails with pagination |
 | `email_stats` | Get mailbox statistics |
 | `count_threads` | Count threads matching a filter without fetching them. Returns totals and a per-account breakdown. |
-| `grep_threads` | Regex search over message bodies, subjects and senders. Returns thread IDs and match counts rather than content, so it stays small. Answers what FTS cannot — "which threads mention @someone". |
+| `grep_threads` | Regex search over message bodies, subjects and senders. Returns thread IDs and match counts rather than content, so it stays small. Answers what FTS cannot — "which threads mention @someone". `sender` restricts matching to messages from a sender (anchored addresses work), so "mail from X that says Y" needs one message to satisfy both. It walks the whole scope, reporting `truncated` if it ever hits its ceiling. |
 | `sync_status` | Pending task queue. The mutation tools return once tasks are *queued*, not once they have reached the provider — poll until `idle` before treating a bulk change as landed. |
 
 `list_threads` and `search_emails` take `compact: true` for a much smaller row
